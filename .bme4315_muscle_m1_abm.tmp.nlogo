@@ -11,8 +11,12 @@
 ; (fields) globals: a list of all global variables
 globals
 [
-  generations ; counts how many generations have passed
-  clock       ; (WIP)
+  generations                     ; counts how many generations have passed
+  clock                           ; (WIP)
+
+  percent-citrate-synthase        ; (parameter) how does citrate synthase affect reinnervation?
+  percent-schwann-cell-confluence ; (parameter) how do Schwann cells promote reinnervation?
+  percent-muscle-cell-confluence  ; (parameter)
 ]
 
 ; (slider) initial-cells: the number of cells to start with
@@ -32,7 +36,7 @@ patches-own
 ; (fields) cells-own: cells' variables
 cells-own
 [
-
+  is-innervated ;
 ]
 
 ; (fields) schwanns-own: Schwann cell's variables
@@ -58,7 +62,6 @@ to setup
     set breed cells
   ]
   ask cells [set shape "circle"]
-  draw-blue
 end
 
 ; (subroutine) go: main subroutine for running the model over ticks
@@ -73,9 +76,7 @@ to migrate
     rt random-float 30 lt random-float 30 ; turn right and turn left
     forward 1
   ]
-
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 210

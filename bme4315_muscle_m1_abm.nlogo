@@ -11,8 +11,12 @@
 ; (fields) globals: a list of all global variables
 globals
 [
-  generations ; counts how many generations have passed
-  clock       ; (WIP)
+  generations                     ; counts how many generations have passed
+  clock                           ; (WIP)
+  ; (WIP) ideas for parameter measurements
+  percent-citrate-synthase        ; (parameter) how does citrate synthase affect reinnervation?
+  percent-schwann-cell-confluence ; (parameter) how do Schwann cells promote reinnervation?
+  percent-muscle-cell-confluence  ; (parameter)
 ]
 
 ; (slider) initial-cells: the number of cells to start with
@@ -32,7 +36,7 @@ patches-own
 ; (fields) cells-own: cells' variables
 cells-own
 [
-
+  is-innervated ; a boolean to determine if innverated by a neuron
 ]
 
 ; (fields) schwanns-own: Schwann cell's variables
