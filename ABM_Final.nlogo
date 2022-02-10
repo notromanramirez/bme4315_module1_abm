@@ -1,88 +1,366 @@
-; BME 4315, Module 1: Agent Based Modeling
+; BME 4315, Module 1: Agent-Based Modeling
 ; Group: Skeletal Muscle
 
 ; TEAM MEMBERS
 ; Tien Comlekoglu, tc2fh@virginia.edu
 ; Mario Garcia, nfq3bd@virginia.edu
 ; Cheney Knight, cwk7ves@virginia.edu
-; Caroline Roden, cmr4vf@virginia.edu
-; Roman Ramirez, rr8rk@virginia.du
+; Roman Ramirez, rr8rk@virginia.edu
+; Carlone Roden, cmr4vf@virginia.edu
 
-; (fields) globals: a list of all global variables
+; ASSUME C5 VENTRAL NERVE ROOT
+; One nerve fiber: 0.03ish mm in diameter
+;
+
 globals
 [
-  generations                     ; counts how many generations have passed
-  clock                           ; (WIP)
-  ; (WIP) ideas for parameter measurements
-  percent-citrate-synthase        ; (parameter) how does citrate synthase affect reinnervation?
-  percent-schwann-cell-confluence ; (parameter) how do Schwann cells promote reinnervation?
-  percent-muscle-cell-confluence  ; (parameter)
+  hit-end
+  miss-end
+  days
+  boundary-deaths
+  apop-death
+
+  our-world-height-p
+  our-world-width-p
+  our-world-height-n
+  our-world-width-n
+  schwann-break
 ]
 
-; (slider) initial-cells: the number of cells to start with
+breed [axons axon]
+breed [schwanns schwann]
+breed [muscles muscle]
+breed [hits hit]
+breed [misses miss]
 
-; initialize types of turtles
-breed [ cells cell ]
-breed [ schwanns schwann ]
-
-;;; (fields) object variables: a list of all object variables ;;;
-
-; (fields) patches-own: patches' variables
 patches-own
 [
-
+  cellID
+  GDNF
+  cytokine
+  did-branch
 ]
 
-; (fields) cells-own: cells' variables
-cells-own
+axons-own
 [
-  is-innervated ; a boolean to determine if innverated by a neuron
+  energy
+  is-tip
 ]
 
-; (fields) schwanns-own: Schwann cell's variables
 schwanns-own
 [
-
 ]
 
-; (subroutine) setup: main subroutine for setting up the model
+muscles-own
+[
+]
+
 to setup
-
-  ; resets the model
   clear-all
+  reset-ticks
 
-  ; initialize constant variables in the model
-  set generations 0
+  ; height is 0.05 [mm/pixel]
+  ; width is 1 [mm/pixel]
 
-  ; initialize cells
-  create-turtles initial-cells [
-    setxy (random-float world-width)
-          (random-float world-height)
-    set color red
-    set breed cells
-  ]
-  ask cells [set shape "circle"]
+  ; timescale is 1 [day/tick]
+  set our-world-height-p 10
+  set our-world-width-p 100 / 2
+  set our-world-height-n -10
+  set our-world-width-n -100 / 2
+  set schwann-break -42
+
+  resize-world our-world-width-n our-world-width-p our-world-height-n our-world-height-p
+
+  set hit-end 0
+  set miss-end 0
+  set days 1
+  set boundary-deaths 0
+  set apop-death 0
+
+  ; initializing axons
+  setup-axons
+
+  ; initializing schwann cells
+  setup-schwanns
+
+  ; initializing "target" muscle cell
+  setup-muscles
+
+  ; initializes scwhann cell gradient
+  make-gradient
+  ask patches [set did-branch false]
 end
 
-; (subroutine) go: main subroutine for running the model over ticks
 to go
+  if (ticks >= run-time) or (hit-end = 1) or (miss-end = 1)
+  [stop]
   migrate
+  apoptosis
+  complete
+  tick
+  set days days + 1
+
+  end
+
+to setup-axons
+
+  ; initializing single cell
+  let spotx (min-pxcor)
+  let spoty (0)
+  ask patch spotx spoty
+  [
+    ; set cellID 1 set pcolor red
+    sprout 1 [
+      set breed axons]
+    ask axons [ set color pink ]
+    ask axons [ set shape "circle" ]
+    ask axons [ set is-tip true ]
+    ask axons [ set energy starting-energy ]
+  ]
+
 end
 
-; (subroutine) migrate: subroutine for cells to move
-to migrate
-  ask turtles
+; INITIALIZE Schwann
+
+to setup-schwanns
+  ; creates solid wall of schwann cells
+
+  let schwann-height-up 2
+  let schwann-height-low -2
+  let counter 0
+  let cschwann 0
+
+  let initial-schwann 1
+  while [counter < 92]
   [
-    rt random-float 30 lt random-float 30 ; turn right and turn left
-    forward 1
+    let spotx max-pxcor - counter
+    crt initial-schwann
+    [
+      setxy spotx schwann-height-up
+      set breed schwanns
+    ]
+    crt initial-schwann
+    [
+      setxy spotx schwann-height-low
+      set breed schwanns
+    ]
+    set counter counter + 1
+  ]
+  let rand-schwann 1
+  while [cschwann < number-schwann]
+  [
+    let upper-random disruption
+    let variation (random-float upper-random) - (upper-random / 2)
+    let spotyp schwann-height-up + variation
+    let spotyn schwann-height-low + variation
+    let break-dist 8 / number-schwann
+    let spotx-rand (min-pxcor + 1 + (break-dist * cschwann))
+    crt rand-schwann
+    [
+      setxy spotx-rand spotyp
+      set breed schwanns
+    ]
+    crt rand-schwann
+    [
+      setxy spotx-rand spotyn
+      set breed schwanns
+    ]
+     ask schwanns
+    [
+      set color blue
+      set shape "schwann"
+    ]
+    set cschwann cschwann + 1
+    ask schwanns [
+      set color blue
+      set shape "schwann"
+    ]
+
+  ]
+
+
+end
+
+to setup-muscles
+  let mus -2
+  while [mus < 3] [
+    let spotx 50
+    let spoty mus
+    ask patch spotx spoty
+    [
+      sprout 1 [
+      set breed muscles
+      set color red
+      set shape "muscle"
+    ]
+  ]
+    set mus mus + 1
+  ]
+
+end
+
+to make-gradient
+  ; GDNF 10ng/mL
+ ask schwanns
+  [ifelse pxcor < schwann-break[
+    ask patches in-radius 3
+        [set GDNF 8 set cytokine 8]
+    ask patches in-radius 2
+        [set GDNF 9 set cytokine 9]
+    ask patches in-radius 1
+        [set GDNF 10 set cytokine 10]
+    ]
+    [
+      ask patches with [(abs pycor = 3) and (pxcor > schwann-break)]
+      [set GDNF 9 set cytokine 9]
+      ask patches with [(abs pycor = 2) and (pxcor > schwann-break)]
+      [set GDNF 10 set cytokine 10]
+      ask patches with [(abs pycor = 1) and (pxcor > schwann-break)]
+      [set GDNF 9 set cytokine 9]
+      ask patches with [(pycor = 0) and (pxcor > schwann-break)]
+      [set GDNF 16 set cytokine 16]
+    ]
+  ]
+
+end
+
+; SCHWANN SUBROUTINES
+
+to apoptosis
+
+  ask axons [
+    if (abs xcor = 50) or (abs ycor > 9)
+    [die]
+    set boundary-deaths boundary-deaths + 1
+  ]
+
+  ask axons [
+    let our-con 0
+    ask patches in-radius 1 [set our-con GDNF + cytokine]
+    ifelse our-con <= 10 [
+      set energy energy - 0.5]
+    [
+      set energy energy + 3
+    ]
+    if energy = 0
+    [die]
+   ]
+
+end
+
+; AXON SUBROUTINES
+
+to migrate
+
+  ask axons [
+    if is-tip = true [
+
+      (ifelse (xcor < schwann-break) and (abs ycor < 9) and (energy >= 1)
+      [
+        let our-con 0
+        set heading 90
+        ask patch-at-heading-and-distance 45 2 [set our-con GDNF + cytokine]
+        let c1 our-con
+        ask patch-at-heading-and-distance 90 1 [set our-con GDNF + cytokine]
+        let c2 our-con
+        ask patch-at-heading-and-distance 135 2 [set our-con GDNF + cytokine]
+        let c3 our-con
+
+        let conc (list c1 c2 c3)
+        set conc sort-by > conc
+
+        (ifelse
+          item 0 conc = c1[
+            set heading random-normal 45 5
+          ]
+          item 0 conc = c2[
+            set heading random-normal 90 5
+          ]
+          item 0 conc = c3[
+            set heading random-normal 135 5
+          ])
+        ]
+
+        (xcor >= schwann-break) and (energy >= 1) and (abs ycor < 3)
+      [
+          (ifelse
+           count (schwanns-at 0 0) > 0[
+              ifelse ycor > 0[
+                set heading 90 + random-float 90
+              ]
+              [set heading random-float 90
+              ]
+            ]
+
+            count (schwanns-at 0 1)  > 0 [
+            set heading 90 + random-float 180 - 90
+
+          ]
+           count (schwanns-at 0 -1) > 0[
+            set heading random-float 90
+
+          ]
+          [
+            set heading random-float 180
+
+        ])
+      ])
+
+      ask patch-at-heading-and-distance heading 1 [set pcolor red set did-branch true]
+      set is-tip false
+        if (random 100 > 100 - prolif) and (abs ycor > 2)[
+                branch-out]
+        ]
+
+       ]
+  axon-create
+end
+
+to branch-out
+    ifelse (random 100 > 100 - prolif)[
+      ask patch-at-heading-and-distance 0 1 [set pcolor red set did-branch true]
+  ]
+    [
+      ask patch-at-heading-and-distance 180 1 [set pcolor red set did-branch true]
+    ]
+end
+
+
+to axon-create
+let pnumber  (count patches with [(pcolor = red) and (did-branch = true)])
+  crt pnumber [
+    set breed axons
+    set color pink
+    set is-tip true
+    set shape "circle"
+    set energy starting-energy
+    move-to one-of patches with [(pcolor = red) and (did-branch = true)]
+  ]
+  ask patches [set did-branch false]
+end
+
+to complete
+  let comp count axons with [(xcor = 49) and (abs ycor < 3)]
+  if comp > 0[
+    set hit-end hit-end + 1
+    crt hit-end [
+      set breed hits
+    ]
+  ]
+  let not-comp count axons with [(xcor = 49) and (abs ycor > 3)]
+    if not-comp > 0[
+    set miss-end miss-end + 1
+      crt miss-end [
+      set breed misses
+    ]
   ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
+191
 10
-647
-448
+1512
+292
 -1
 -1
 13.0
@@ -95,10 +373,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-50
+50
+-10
+10
 0
 0
 1
@@ -106,11 +384,11 @@ ticks
 30.0
 
 BUTTON
-22
-45
-85
-78
-NIL
+0
+10
+64
+43
+Setup
 setup
 NIL
 1
@@ -122,27 +400,12 @@ NIL
 NIL
 1
 
-SLIDER
-18
-92
-190
-125
-initial-cells
-initial-cells
-0
-100
-13.0
-1
-1
-NIL
-HORIZONTAL
-
 BUTTON
-93
-46
-156
-79
-NIL
+0
+43
+64
+76
+Go
 go
 T
 1
@@ -153,6 +416,77 @@ NIL
 NIL
 NIL
 1
+
+INPUTBOX
+0
+76
+80
+136
+run-time
+200.0
+1
+0
+Number
+
+SLIDER
+0
+137
+191
+170
+starting-energy
+starting-energy
+1
+10
+5.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+169
+191
+202
+number-schwann
+number-schwann
+2
+8
+2.0
+2
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+201
+191
+234
+prolif
+prolif
+0
+70
+15.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+233
+191
+266
+disruption
+disruption
+0
+7
+7.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -357,6 +691,18 @@ true
 0
 Line -7500403 true 150 0 150 150
 
+muscle
+true
+0
+Circle -2064490 true false 60 75 0
+Circle -2064490 true false 9 99 192
+Circle -2064490 true false 30 30 150
+Circle -2064490 true false 120 30 150
+Circle -2064490 true false 144 249 42
+Circle -2064490 true false 129 24 42
+Circle -2064490 true false 135 135 150
+Circle -5825686 true false 129 129 42
+
 pentagon
 false
 0
@@ -382,6 +728,17 @@ Polygon -7500403 true true 165 180 165 210 225 180 255 120 210 135
 Polygon -7500403 true true 135 105 90 60 45 45 75 105 135 135
 Polygon -7500403 true true 165 105 165 135 225 105 255 45 210 60
 Polygon -7500403 true true 135 90 120 45 150 15 180 45 165 90
+
+schwann
+false
+0
+Circle -11221820 true false 15 75 30
+Circle -11221820 true false 255 75 30
+Circle -11221820 true false 15 195 30
+Circle -11221820 true false 255 195 30
+Rectangle -11221820 true false 30 90 270 210
+Circle -13791810 true false 105 120 60
+Circle -13791810 true false 120 135 30
 
 sheep
 false
@@ -500,6 +857,82 @@ NetLogo 6.2.2
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="Single Repition" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>count axons</metric>
+    <metric>count hits</metric>
+    <metric>count misses</metric>
+    <steppedValueSet variable="prolif" first="0" step="5" last="70"/>
+    <steppedValueSet variable="run-time" first="100" step="10" last="200"/>
+    <steppedValueSet variable="starting-energy" first="1" step="1" last="10"/>
+    <steppedValueSet variable="disruption" first="0" step="1" last="7"/>
+    <steppedValueSet variable="number-schwann" first="2" step="2" last="8"/>
+  </experiment>
+  <experiment name="Gap" repetitions="100" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>count axons</metric>
+    <metric>count hits</metric>
+    <metric>count misses</metric>
+    <enumeratedValueSet variable="starting-energy">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="run-time">
+      <value value="200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="prolif">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="disruption" first="0" step="1" last="7"/>
+    <enumeratedValueSet variable="number-schwann">
+      <value value="2"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Perfect" repetitions="100" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>count axons</metric>
+    <metric>count hits</metric>
+    <metric>count misses</metric>
+    <enumeratedValueSet variable="starting-energy">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="run-time">
+      <value value="200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="prolif">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="disruption">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-schwann">
+      <value value="8"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Dist 7 Gap" repetitions="100" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>count hits</metric>
+    <enumeratedValueSet variable="starting-energy">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="run-time">
+      <value value="200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="prolif">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="disruption">
+      <value value="7"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-schwann">
+      <value value="2"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
